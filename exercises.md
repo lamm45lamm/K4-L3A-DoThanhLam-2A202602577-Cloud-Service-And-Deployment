@@ -127,11 +127,7 @@ lệnh `USER` cắt đứt chuỗi đó ở chỗ nào.
 > exploit...) để thoát ra tiến trình host — lúc đó họ đã có quyền root thật
 > trên máy chủ.
 > Lệnh `USER appuser` cắt đứt chuỗi ở bước (2)-(3): process trong container
-> chạy bằng UID thường, không phải 0. Dù lỗ hổng (1) vẫn khai thác được và
-> kẻ tấn công vẫn chạy lệnh trong container, họ chỉ có quyền của user
-> thường — không ghi được vào file hệ thống, không cài binary vào thư mục hệ
-> thống, và nếu thoát được ra host thì cũng chỉ mang theo quyền hạn chế đó,
-> không phải root.
+> chạy bằng UID thường, không phải 0.
 
 ---
 
@@ -142,15 +138,7 @@ phút đồng hồ (reset lúc giây 00), một người dùng có thể gửi t
 request trong 2 giây liên tiếp khi hạn mức là 10/phút? Giải thích cách đạt được
 con số đó.
 
-> Tối đa **20 request trong 2 giây**. Cách đạt được: gửi đủ 10 request lúc
-> 10:00:59 (vẫn nằm trong "phút thứ 00", đúng luật, hạn mức 10/phút chưa
-> chạm). Ngay khi đồng hồ nhảy sang 10:01:00, bộ đếm reset về 0 vì đó là
-> "phút thứ 01" mới — gửi tiếp 10 request nữa lúc 10:01:00 hoặc 10:01:01 vẫn
-> đúng luật của phút mới. Tổng cộng 20 request nằm gọn trong khoảng 10:00:59
-> đến 10:01:01, tức 2 giây đồng hồ thật, dù cả hai lần đều "hợp lệ" theo cách
-> đếm cố định. Sliding window (ZSET, xoá member cũ hơn `now - 60s`) không có
-> lỗ hổng này vì nó luôn nhìn lại đúng 60 giây gần nhất tính từ thời điểm
-> request tới, không có mốc reset cố định để lợi dụng.
+> Tối đa **20 request trong 2 giây**.
 
 ---
 
@@ -208,26 +196,11 @@ Chạy `docker compose up --scale agent=3` rồi gọi `/ask` nhiều lần vớ
 trong một dict Python thay vì Redis, bạn sẽ thấy con số đó thay đổi thế nào?
 
 > `docker-compose.yml` map cứng cổng `8000:8000` nên `--scale agent=3` không
-> tạo được 3 container cùng lúc (xung đột port khi publish ra host — muốn
-> scale thật cần bỏ port cố định và đặt nginx/load balancer phía trước, phần
-> mở rộng không bắt buộc của lab). Tôi kiểm chứng tính stateless bằng cách
+> tạo được 3 container cùng lúc. Tôi kiểm chứng tính stateless bằng cách
 > gọi `/ask` 3 lần liên tiếp cùng `X-User-Id: sv-scale-test` vào MỘT
 > container, quan sát `history_length` trả về: 0 → 2 → 4. Mỗi lần tăng đúng
 > 2 (một message user, một message assistant), nghĩa là lịch sử được đọc/ghi
-> từ Redis (`store.get_history` / `store.append`) chứ không giữ trong biến
-> của process — khớp với test `test_state_khong_nam_trong_process` (2
-> `ConversationStore` khác nhau cùng thấy chung dữ liệu qua `fake_redis`).
->
-> Nếu lịch sử nằm trong một `dict` Python trong process: với 1 container thì
-> kết quả bề ngoài giống hệt (dict đó vẫn tăng dần vì cùng process xử lý mọi
-> request). Nhưng khi scale thật lên 3 container đứng sau load balancer, mỗi
-> request của cùng `X-User-Id` có thể rơi vào container khác nhau (round-robin
-> hoặc ngẫu nhiên) — mỗi container có `dict` riêng trong RAM riêng của nó.
-> `history_length` khi đó sẽ **không tăng đều**: có lúc trả về 0 (rơi vào
-> container chưa từng thấy user này), có lúc trả về một số nhỏ hơn thực tế
-> (rơi vào container B trong khi 2 lượt trước rơi vào container A) — agent
-> trông như bị "mất trí nhớ" tùy may rủi route traffic, và container bị
-> restart thì toàn bộ dict đó biến mất luôn.
+> từ Redis chứ không giữ trong biến của process.
 
 ---
 
@@ -237,12 +210,4 @@ Ghi lại **một** lỗi bạn gặp khi deploy lên cloud (build fail, health 
 timeout, sai REDIS_URL, app không đọc `$PORT`...): thông báo lỗi là gì, bạn
 tìm ra nguyên nhân bằng cách nào, và sửa ra sao?
 
-> (TODO — điền sau khi deploy thật) Ở thời điểm nộp bài này tôi chưa deploy
-> lên cloud thật (Railway/Render/Cloud Run), dùng phương án dự phòng
-> `LOCAL_FALLBACK=true` với `docker compose up` — xem `DEPLOYMENT.md`. Khi
-> deploy thật, lỗi nhiều khả năng gặp nhất theo cấu hình hiện tại: `/ready`
-> trả 503 nếu biến `REDIS_URL` trên dashboard vẫn còn trỏ `localhost` thay vì
-> hostname/URL của Redis add-on trên cloud (trong container cục bộ tôi đã
-> phải sửa thành `redis://redis:6379/0` chứ không phải `localhost`, xem
-> `docker-compose.yml`) — sẽ cập nhật câu trả lời này bằng lỗi thật khi deploy
-> xong.
+> Chưa triển khai trên cloud.
